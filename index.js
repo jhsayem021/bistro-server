@@ -60,7 +60,7 @@ async function run() {
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
       const query = { email: email }
-      const user = await usersCollection.findOne(query);
+      const user = await userCollection.findOne(query);
       if (user?.role !== 'admin') {
         return res.status(403).send({ error: true, message: 'forbidden message' });
       }
@@ -127,6 +127,16 @@ async function run() {
       const result = await menuCollection.find().toArray();
       res.send(result);
     })
+
+
+    app.post('/menu', verifyJWT, verifyAdmin, async (req, res) => {
+      const newItem = req.body;
+      console.log(newItem);
+      const result = await menuCollection.insertOne(newItem)
+      res.send(result);
+    })
+
+
     app.get('/carts', verifyJWT, async (req, res) => {
       const email = req.query.email;
       console.log(email)
