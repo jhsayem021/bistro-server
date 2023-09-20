@@ -307,7 +307,7 @@ app.get('/', (req, res) => {
 })
 
 app.listen(port, () => {
-  console.log(`Bistro boss is running on port ${port}`);
+  console.log(`Food Mania is running on port ${port}`);
 })
 
 
