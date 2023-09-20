@@ -1,17 +1,17 @@
+
+
+
 const express = require('express');
 const app = express();
 const cors = require('cors');
-require('dotenv').config()
 const jwt = require('jsonwebtoken');
+require('dotenv').config()
 const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 const port = process.env.PORT || 8000;
 
-
-// Middleware
-
+// middleware
 app.use(cors());
 app.use(express.json());
-
 
 const verifyJWT = (req, res, next) => {
   const authorization = req.headers.authorization;
@@ -31,8 +31,6 @@ const verifyJWT = (req, res, next) => {
 }
 
 
-
-
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.sezawpu.mongodb.net/?retryWrites=true&w=majority`;
 
@@ -50,9 +48,10 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
+    const usersCollection = client.db("bistrodb").collection("users");
     const menuCollection = client.db("bistrodb").collection("menu");
+    const reviewCollection = client.db("bistrodb").collection("reviews");
     const cartCollection = client.db("bistrodb").collection("carts");
-    const userCollection = client.db("bistrodb").collection("users");
     const paymentCollection = client.db("bistrodb").collection("payments");
 
     app.post('/jwt', (req, res) => {
@@ -66,41 +65,41 @@ async function run() {
     const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
       const query = { email: email }
-      const user = await userCollection.findOne(query);
+      const user = await usersCollection.findOne(query);
       if (user?.role !== 'admin') {
         return res.status(403).send({ error: true, message: 'forbidden message' });
       }
       next();
     }
 
-    app.get('/users', async (req, res) => {
-      const result = await userCollection.find().toArray();
-      res.send(result)
-    })
+    /**
+     * 0. do not show secure links to those who should not see the links
+     * 1. use jwt token: verifyJWT
+     * 2. use verifyAdmin middleware
+    */
 
-
-    app.post('/user', async (req, res) => {
-      const user = req.body;
-      const query = { email: user.email };
-      const existingUser = await userCollection.findOne(query)
-      console.log(existingUser);
-      if (existingUser) {
-        return res.send({ message: "user already exits" })
-      }
-      const result = await userCollection.insertOne(user);
+    // users related apis
+    app.get('/users', verifyJWT, verifyAdmin, async (req, res) => {
+      const result = await usersCollection.find().toArray();
       res.send(result);
-    })
+    });
 
-    app.delete('/users/:id', async (req, res) => {
-      const id = req.params.id;
+    app.post('/users', async (req, res) => {
+      const user = req.body;
+      const query = { email: user.email }
+      const existingUser = await usersCollection.findOne(query);
 
-      const query = { _id: new ObjectId(id) };
+      if (existingUser) {
+        return res.send({ message: 'user already exists' })
+      }
 
-      const result = await userCollection.deleteOne(query);
-      res.send(result)
-    })
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
 
-    // Security layers
+    // security layer: verifyJWT
+    // email same
+    // check admin
     app.get('/users/admin/:email', verifyJWT, async (req, res) => {
       const email = req.params.email;
 
@@ -109,74 +108,81 @@ async function run() {
       }
 
       const query = { email: email }
-      const user = await userCollection.findOne(query);
-      const result = { admin: user?.role === 'admin' };
+      const user = await usersCollection.findOne(query);
+      const result = { admin: user?.role === 'admin' }
       res.send(result);
-
     })
-
 
     app.patch('/users/admin/:id', async (req, res) => {
       const id = req.params.id;
+      console.log(id);
       const filter = { _id: new ObjectId(id) };
       const updateDoc = {
         $set: {
           role: 'admin'
         },
       };
-      const result = await userCollection.updateOne(filter, updateDoc);
+
+      const result = await usersCollection.updateOne(filter, updateDoc);
       res.send(result);
+
     })
 
 
+    // menu related apis
     app.get('/menu', async (req, res) => {
       const result = await menuCollection.find().toArray();
       res.send(result);
     })
 
-
     app.post('/menu', verifyJWT, verifyAdmin, async (req, res) => {
       const newItem = req.body;
-      console.log(newItem);
       const result = await menuCollection.insertOne(newItem)
       res.send(result);
     })
 
-        app.delete('/menu/:id', verifyJWT, verifyAdmin, async (req, res) => {
+    app.delete('/menu/:id', verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) }
       const result = await menuCollection.deleteOne(query);
       res.send(result);
     })
 
+    // review related apis
+    app.get('/reviews', async (req, res) => {
+      const result = await reviewCollection.find().toArray();
+      res.send(result);
+    })
 
+
+    // cart collection apis
     app.get('/carts', verifyJWT, async (req, res) => {
       const email = req.query.email;
-      console.log(email)
-      console.log(email)
+
       if (!email) {
-        res.send([])
+        res.send([]);
       }
+
       const decodedEmail = req.decoded.email;
       if (email !== decodedEmail) {
-        return res.status(401).send({ error: true, message: 'Forbidden access' })
+        return res.status(403).send({ error: true, message: 'forbidden access' })
       }
-      const query = { email: email }
+
+      const query = { email: email };
       const result = await cartCollection.find(query).toArray();
-      res.send(result)
-    })
-    app.delete('/carts/:id', async (req, res) => {
-      const id = req.params.id;
+      res.send(result);
+    });
 
-      const query = { _id: new ObjectId(id) };
-
-      const result = await cartCollection.deleteOne(query);
-      res.send(result)
-    })
     app.post('/carts', async (req, res) => {
       const item = req.body;
-      // console.log(item);
       const result = await cartCollection.insertOne(item);
+      res.send(result);
+    })
+
+    app.delete('/carts/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await cartCollection.deleteOne(query);
       res.send(result);
     })
 
@@ -208,7 +214,7 @@ async function run() {
     })
 
     app.get('/admin-stats', verifyJWT, verifyAdmin, async (req, res) => {
-      const users = await userCollection.estimatedDocumentCount();
+      const users = await usersCollection.estimatedDocumentCount();
       const products = await menuCollection.estimatedDocumentCount();
       const orders = await paymentCollection.estimatedDocumentCount();
 
@@ -235,6 +241,20 @@ async function run() {
       })
     })
 
+
+    /**
+     * ---------------
+     * BANGLA SYSTEM(second best solution)
+     * ---------------
+     * 1. load all payments
+     * 2. for each payment, get the menuItems array
+     * 3. for each item in the menuItems array get the menuItem from the menu collection
+     * 4. put them in an array: allOrderedItems
+     * 5. separate allOrderedItems by category using filter
+     * 6. now get the quantity by using length: pizzas.length
+     * 7. for each category use reduce to get the total amount spent on this category
+     * 
+    */
     app.get('/order-stats', verifyJWT, verifyAdmin, async(req, res) =>{
       const pipeline = [
         {
@@ -283,9 +303,23 @@ run().catch(console.dir);
 
 
 app.get('/', (req, res) => {
-  res.send("Server is running")
+  res.send('Food Mania is running')
 })
 
 app.listen(port, () => {
-  console.log(`Bistro server is running on ${port}`)
+  console.log(`Bistro boss is running on port ${port}`);
 })
+
+
+/**
+ * --------------------------------
+ *      NAMING CONVENTION
+ * --------------------------------
+ * users : userCollection
+ * app.get('/users')
+ * app.get('/users/:id')
+ * app.post('/users')
+ * app.patch('/users/:id')
+ * app.put('/users/:id')
+ * app.delete('/users/:id')
+*/
