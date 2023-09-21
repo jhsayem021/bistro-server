@@ -1,10 +1,10 @@
 
-
-
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const express = require('express');
 const app = express();
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const { query } = require('express');
 require('dotenv').config()
 const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 const port = process.env.PORT || 8000;
@@ -31,7 +31,6 @@ const verifyJWT = (req, res, next) => {
 }
 
 
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.sezawpu.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -143,10 +142,14 @@ async function run() {
 
     app.delete('/menu/:id', verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
-      const query = { _id: new ObjectId(id) }
-      const result = await menuCollection.deleteOne(query);
+      console.log(id)
+      const filter = { _id: id }
+      const result = await menuCollection.deleteOne(filter);
+      console.log(result)
       res.send(result);
     })
+
+
 
     // review related apis
     app.get('/reviews', async (req, res) => {
