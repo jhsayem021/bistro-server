@@ -127,6 +127,15 @@ async function run() {
 
     })
 
+app.delete('/user/:id', verifyJWT, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      console.log(id)
+      const filter = { _id: new ObjectId(id) }
+      const result = await menuCollection.deleteOne(filter);
+      console.log(result)
+      res.send(result);
+    })
+
 
     // menu related apis
     app.get('/menu', async (req, res) => {
