@@ -131,7 +131,7 @@ app.delete('/user/:id', verifyJWT, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       console.log(id)
       const filter = { _id: new ObjectId(id) }
-      const result = await menuCollection.deleteOne(filter);
+      const result = await usersCollection.deleteOne(filter);
       console.log(result)
       res.send(result);
     })
